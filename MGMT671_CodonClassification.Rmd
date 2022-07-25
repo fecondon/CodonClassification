@@ -1,0 +1,930 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Load in libraries for classification and EDA
+```{r}
+library(caret)
+library(dplyr)
+#install.packages("corrplot")
+library(corrplot)
+library(ggplot2)
+#install.packages("naivebayes")
+library(naivebayes)
+#install.packages("sgd")
+library(sgd)
+library(class)
+#install.packages("tree")
+library(tree)
+library(randomForest)
+library(e1071)
+#install.packages("psych")
+library(psych)
+#install.packages("plotmo")
+library(plotmo)
+```
+
+Load in data set
+```{r}
+dna0 <- read.csv("codon_usage.csv")
+summary(dna0)
+str(dna0)
+```
+
+Change first two codons to numeric data type by dropping character rows
+```{r}
+dna1 <- dna0
+
+dna1[grep("^non", dna1$UUU), ] <- NA
+dna1[grep("-", dna1$UUC), ] <- NA
+
+dna1$DNAtype <- as.factor(dna1$DNAtype)
+dna1$UUU <- as.numeric(dna1$UUU)
+dna1$UUC <- as.numeric(dna1$UUC)
+dna1$Kingdom <- as.factor(dna1$Kingdom)
+
+summary(dna1)
+
+dna1 <- na.omit(dna1)
+
+summary(dna1)
+```
+
+```{r}
+describe(dna1)
+```
+
+
+## Group by Amino Acid
+```{r}
+dna2 <- dna1
+
+dna2$Phenylalanine <- dna1 %>%
+  select(c(UUU, UUC)) %>%
+  rowSums()
+
+dna2$Leucine <- dna1 %>% 
+  select(c(UUA, UUG, CUU, CUC, CUA, CUG)) %>%
+  rowSums()
+
+dna2$Isoleucine <- dna1 %>%
+  select(c(AUU, AUC, AUA)) %>%
+  rowSums()
+
+dna2$Methionine <- dna1 %>% 
+  select(c(AUG)) %>%
+  rowSums()
+
+dna2$Valine <- dna1 %>%
+  select(c(GUU, GUC, GUA, GUG)) %>%
+  rowSums()
+
+dna2$Serine <- dna1 %>%
+  select(c(UCU, UCC, UCA, UCG, AGU, AGC)) %>%
+  rowSums()
+
+dna2$Proline <- dna1 %>%
+  select(c(CCU, CCC, CCA, CCG)) %>%
+  rowSums()
+
+dna2$Threonine <- dna1 %>%
+  select(c(ACU, ACC, ACA, ACG)) %>%
+  rowSums()
+
+dna2$Alanine <- dna1 %>%
+  select(c(GCU, GCC, GCA, GCG)) %>%
+  rowSums()
+
+dna2$Tyrosine <- dna1 %>%
+  select(c(UAU, UAC)) %>%
+  rowSums()
+
+dna2$Stop <- dna1 %>%
+  select(c(UAA, UAG, UGA)) %>%
+  rowSums()
+
+dna2$Histidine <- dna1 %>%
+  select(c(CAU, CAC)) %>%
+  rowSums()
+
+dna2$Glutamine <- dna1 %>%
+  select(c(CAA, CAG)) %>%
+  rowSums()
+
+dna2$Asparagine <- dna1 %>%
+  select(c(AAU, AAC)) %>%
+  rowSums()
+
+dna2$Lysine <- dna1 %>%
+  select(c(AAA, AAG)) %>%
+  rowSums()
+
+dna2$Aspartic.acid <- dna1 %>%
+  select(c(GAU, GAC)) %>%
+  rowSums()
+
+dna2$Glutamic.acid <- dna1 %>%
+  select(c(GAA, GAG)) %>%
+  rowSums()
+
+dna2$Cysteine <- dna1 %>%
+  select(c(UGU, UGC)) %>%
+  rowSums()
+
+dna2$Tryptophan <- dna1 %>%
+  select(c(UGG)) %>%
+  rowSums()
+
+dna2$Arginine <- dna1 %>%
+  select(c(CGU, CGC, CGA, CGG, AGA, AGG)) %>%
+  rowSums()
+
+dna2$Glycine <- dna1 %>%
+  select(c(GGU, GGC, GGA, GGG)) %>%
+  rowSums()
+```
+
+## Group by biochemical properties
+```{r}
+dna2$Nonpolar <- dna2 %>%
+  select(c(Phenylalanine, Leucine, Isoleucine, Methionine, Valine, Proline, Alanine, Tryptophan, Glycine)) %>%
+  rowSums()
+
+dna2$Polar <- dna2 %>%
+  select(c(Serine, Threonine, Tyrosine, Glutamine, Asparagine, Cysteine)) %>%
+  rowSums()
+
+dna2$Basic <- dna2 %>%
+  select(c(Histidine, Lysine, Arginine)) %>%
+  rowSums()
+
+dna2$Acidic <- dna2 %>%
+  select(c(Aspartic.acid, Glutamic.acid)) %>%
+  rowSums()
+```
+
+```{r}
+dna.aa <- dna2 %>%
+  select(c(Kingdom, Phenylalanine, Leucine, Isoleucine, Methionine, Valine, Proline, Alanine, Tryptophan, Glycine,
+           Serine, Threonine, Tyrosine, Glutamine, Asparagine, Cysteine, Histidine, Lysine, Arginine, 
+           Aspartic.acid, Glutamic.acid, Stop))
+
+dna.bio <- dna2 %>%
+  select(c(Kingdom, Nonpolar, Polar, Basic, Acidic))
+```
+
+## EDA
+```{r}
+ggplot(dna1, aes(x = Kingdom, y = ..count.., fill = DNAtype)) + 
+  geom_bar()
+
+ggplot(dna1, aes(x = UUU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UUC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UUA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UUG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CUU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CUC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CUA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CUG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = AUU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = AUC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = AUA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = AUG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GUU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GUC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GUA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GUG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GCU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GCC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GCA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GCG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CCU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CCC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CCA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CCG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UGG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GGU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GGC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GGA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GGG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UCU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UCC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UCA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UCG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = AGU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = AGC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = ACU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = ACC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = ACA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = ACG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UAU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UAC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CAA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CAG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = AAU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = AAC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UGU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CAU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CAC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = AAA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CGU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CGC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CGA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = CGG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = AGA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = AGG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GAU, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GAC, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GAA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = GAG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UAA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UAG, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+
+ggplot(dna1, aes(x = UGA, y = Kingdom)) + 
+  geom_point(aes(color = DNAtype))
+```
+## Partition the data into three sections Codons, Amino Acids, Biochemical Properties
+```{r}
+dna1 <- dna1 %>%
+  select(-c(DNAtype, SpeciesID, Ncodons,SpeciesName))
+
+set.seed(175)
+controlObject <- trainControl(method = "repeatedcv", number = 10, repeats = 5)
+
+forTraining <- createDataPartition(dna1$Kingdom, p = 0.8, list = FALSE)
+dna.train <- dna1[forTraining, ]
+dna.test <- dna1[-forTraining, ]
+
+forTraining.aa <- createDataPartition(dna.aa$Kingdom, p = 0.8, list = FALSE)
+dna.aa.train <- dna.aa[forTraining.aa, ]
+dna.aa.test <- dna.aa[-forTraining.aa, ]
+
+forTraining.bio <- createDataPartition(dna.bio$Kingdom, p = 0.8, list = FALSE)
+dna.bio.train <- dna.bio[forTraining.bio, ]
+dna.bio.test <- dna.bio[-forTraining.bio, ]
+```
+
+Correlation Matrix
+```{r}
+dna2.codon.cor <- dna1 %>%
+  select(!c(Kingdom)) %>%
+  cor()
+corrplot(dna2.codon.cor, method = 'color', order = 'FPC', type = 'lower', tl.cex = 0.5)
+
+dna2.aa.cor <- dna2 %>%
+  select(c(Phenylalanine, Leucine, Isoleucine, Methionine, Valine, Serine, Proline, Threonine,
+           Alanine, Tyrosine, Stop, Histidine, Glutamine, Asparagine, Lysine, Aspartic.acid,
+           Glutamic.acid, Cysteine, Tryptophan, Arginine, Glycine)) %>%
+  cor()
+corrplot(dna2.aa.cor, method = 'color', order = 'FPC', type = 'lower')
+
+dna2.bio.cor <- dna2 %>%
+  select(c(Nonpolar, Polar, Basic, Acidic)) %>%
+  cor()
+corrplot(dna2.bio.cor, method = 'color', order = 'FPC', type = 'lower')
+```
+```{r}
+dna1.pca <- prcomp(dna1[, c(6:65)], center = TRUE, scale. = TRUE)
+
+summary(dna1.pca)
+
+plot(dna1.pca)
+```
+
+```{r}
+dna1.pca.sub1 <- dna1 %>%
+  select(c(GGC, GUC, CUG, GCC, GAC, CGC, CCG, GCG, GUG, CGG, CAG, GAG, ACG, UCG, ACC, AGC, CAC, CCC, CUC, UAC, AUC, UCC, AAC, UUC, UGC, AAG, GGG, UGG, AUG, AGG, UAG))
+
+dna1.pca1 <- prcomp(dna1.pca.sub1, center = TRUE, scale. = TRUE)
+
+summary(dna1.pca1)
+
+plot(dna1.pca1)
+```
+
+```{r}
+dna1.pca.sub2 <- dna1 %>% 
+  select(-c(GGC, GUC, CUG, GCC, GAC, CGC, CCG, GCG, GUG, CGG, CAG, GAG, ACG, UCG, ACC, AGC, CAC, CCC, CUC, UAC, AUC, UCC, AAC, UUC, UGC, AAG, GGG, UGG, AUG, AGG, UAG, Kingdom))
+
+dna1.pca2 <- prcomp(dna1.pca.sub2, center = TRUE, scale. = TRUE)
+
+summary(dna1.pca2)
+
+plot(dna1.pca2)
+```
+
+## Linear Discriminant Analysis
+```{r}
+dna.lda <- train(Kingdom ~ ., data = dna.train, 
+                 method = "lda", preProc = c("center", "scale"), trControl = controlObject)
+
+dna.lda
+```
+
+### Check Variable Importance on trained model
+```{r}
+dna.lda$finalModel
+
+varImp(dna.lda)
+
+plot(varImp(dna.lda))
+```
+### Calculate Accuracy and Kappa for Test Data
+```{r}
+dna.lda.pred <- predict(dna.lda, dna.test)
+
+dna.lda.test <- data.frame(obs = dna.test$Kingdom, pred = dna.lda.pred)
+
+dna.lda.stats <- defaultSummary(dna.lda.test)
+
+dna.lda.stats
+```
+
+## Naïve Bayes
+```{r}
+dna.nb <- train(Kingdom ~ ., data = dna.train, method = "naive_bayes", preProc = c("center", "scale"), 
+                trControl = controlObject)
+
+dna.nb
+
+plot(dna.nb)
+
+varImp(dna.nb)
+
+plot(varImp(dna.nb))
+```
+
+```{r}
+dna.nb.pred <- predict(dna.nb, dna.test)
+
+dna.nb.test <- data.frame(obs = dna.test$Kingdom, pred = dna.nb.pred)
+
+dna.nb.stats <- defaultSummary(dna.nb.test)
+
+dna.nb.stats
+```
+
+
+## Stochastic Gradient Descent
+```{r}
+# gbmGrid <- expand.grid(.interaction.depth = seq(1, 7, by = 2), .n.trees = seq(100, 1000, by = 50),
+#                       .shrinkage = c(.001, .1), .n.minobsinnode = 10)
+
+dna.sgd <- train(Kingdom ~ ., data = dna.train, method = "gbm", verbose = FALSE, 
+                trControl = controlObject)
+
+summary(dna.sgd)
+```
+
+## K-Nearest Neighbors
+```{r}
+dna.knn <- train(Kingdom ~ ., data = dna.train, method = "knn", trControl = controlObject)
+
+dna.knn
+
+plot(dna.knn)
+
+varImp(dna.knn)
+
+plot(varImp(dna.knn))
+```
+
+```{r}
+dna.knn.pred <- predict(dna.knn, dna.test)
+
+dna.knn.test <- data.frame(obs = dna.test$Kingdom, pred = dna.knn.pred)
+
+dna.knn.stats <- defaultSummary(dna.knn.test)
+
+dna.knn.stats
+```
+
+
+## Decision Tree
+```{r}
+dna.tree <- train(Kingdom ~ ., data = dna.train, method = "rpart", trControl = controlObject)
+
+dna.tree
+
+plot(dna.tree)
+
+varImp(dna.tree)
+
+plot(varImp(dna.tree))
+```
+
+```{r}
+dna.tree.pred <- predict(dna.tree, dna.test)
+
+dna.tree.test <- data.frame(obs = dna.test$Kingdom, pred = dna.tree.pred)
+
+dna.tree.stats <- defaultSummary(dna.tree.test)
+
+dna.tree.stats
+```
+
+
+## Random Forest
+```{r}
+dna.rf <- train(Kingdom ~ ., data = dna.train, method = "rf", importance = TRUE)
+
+dna.rf
+
+plot(dna.rf)
+
+varImp(dna.rf)
+
+plot(varImp(dna.rf))
+```
+
+```{r}
+dna.rf.pred <- predict(dna.rf, dna.test)
+
+dna.rf.test <- data.frame(obs = dna.test$Kingdom, pred = dna.rf.pred)
+
+dna.rf.stats <- defaultSummary(dna.rf.test)
+
+dna.rf.stats
+```
+
+## SVM
+```{r}
+dna.svm <- train(Kingdom ~ ., data = dna.train, method = "svmRadial")
+
+dna.svm
+
+plot(dna.svm)
+
+varImp(dna.svm)
+
+plot(varImp(dna.svm))
+```
+
+```{r}
+dna.svm.pred <- predict(dna.svm, dna.test)
+
+dna.svm.test <- data.frame(obs = dna.test$Kingdom, pred = dna.svm.pred)
+
+dna.svm.stats <- defaultSummary(dna.svm.test)
+
+dna.svm.stats
+```
+
+# Amino Acid Models
+
+## Linear Discriminant Analysis
+```{r}
+dna.aa.lda <- train(Kingdom ~ ., data = dna.aa.train, 
+                 method = "lda", preProc = c("center", "scale"), trControl = controlObject)
+
+dna.aa.lda
+```
+
+### Check Variable Importance on trained model
+```{r}
+dna.aa.lda$finalModel
+
+varImp(dna.aa.lda)
+
+plot(varImp(dna.aa.lda))
+```
+
+### Calculate Accuracy and Kappa for Test Data
+```{r}
+dna.aa.lda.pred <- predict(dna.aa.lda, dna.aa.test)
+
+dna.aa.lda.test <- data.frame(obs = dna.aa.test$Kingdom, pred = dna.aa.lda.pred)
+
+dna.aa.lda.stats <- defaultSummary(dna.aa.lda.test)
+
+dna.aa.lda.stats
+```
+
+## Naïve Bayes
+```{r}
+dna.aa.nb <- train(Kingdom ~ ., data = dna.aa.train, method = "naive_bayes", preProc = c("center", "scale"), 
+                trControl = controlObject)
+
+dna.aa.nb
+
+plot(dna.aa.nb)
+
+varImp(dna.aa.nb)
+
+plot(varImp(dna.aa.nb))
+```
+
+```{r}
+dna.aa.nb.pred <- predict(dna.aa.nb, dna.aa.test)
+
+dna.aa.nb.test <- data.frame(obs = dna.aa.test$Kingdom, pred = dna.aa.nb.pred)
+
+dna.aa.nb.stats <- defaultSummary(dna.aa.nb.test)
+
+dna.aa.nb.stats
+```
+
+## K-Nearest Neighbors
+```{r}
+dna.aa.knn <- train(Kingdom ~ ., data = dna.aa.train, method = "knn", trControl = controlObject)
+
+dna.aa.knn
+
+plot(dna.aa.knn)
+
+varImp(dna.aa.knn)
+
+plot(varImp(dna.aa.knn))
+```
+
+```{r}
+dna.aa.knn.pred <- predict(dna.aa.knn, dna.aa.test)
+
+dna.aa.knn.test <- data.frame(obs = dna.aa.test$Kingdom, pred = dna.aa.knn.pred)
+
+dna.aa.knn.stats <- defaultSummary(dna.aa.knn.test)
+
+dna.aa.knn.stats
+```
+
+## Decision Tree
+```{r}
+dna.aa.tree <- train(Kingdom ~ ., data = dna.aa.train, method = "rpart", trControl = controlObject)
+
+dna.aa.tree
+
+plot(dna.aa.tree)
+
+varImp(dna.aa.tree)
+
+plot(varImp(dna.aa.tree))
+```
+
+```{r}
+dna.aa.tree.pred <- predict(dna.aa.tree, dna.aa.test)
+
+dna.aa.tree.test <- data.frame(obs = dna.aa.test$Kingdom, pred = dna.aa.tree.pred)
+
+dna.aa.tree.stats <- defaultSummary(dna.aa.tree.test)
+
+dna.aa.tree.stats
+```
+
+
+## Random Forest
+```{r}
+dna.aa.rf <- train(Kingdom ~ ., data = dna.aa.train, method = "rf", importance = TRUE)
+
+dna.aa.rf
+
+plot(dna.aa.rf)
+
+varImp(dna.aa.rf)
+
+plot(varImp(dna.aa.rf))
+```
+
+```{r}
+dna.aa.rf.pred <- predict(dna.aa.rf, dna.aa.test)
+
+dna.aa.rf.test <- data.frame(obs = dna.aa.test$Kingdom, pred = dna.aa.rf.pred)
+
+dna.aa.rf.stats <- defaultSummary(dna.aa.rf.test)
+
+dna.aa.rf.stats
+```
+
+## SVM
+```{r}
+dna.aa.svm <- train(Kingdom ~ ., data = dna.aa.train, method = "svmRadial")
+
+dna.aa.svm
+
+plot(dna.aa.svm)
+
+varImp(dna.aa.svm)
+
+plot(varImp(dna.aa.svm))
+```
+
+```{r}
+dna.aa.svm.pred <- predict(dna.aa.svm, dna.aa.test)
+
+dna.aa.svm.test <- data.frame(obs = dna.aa.test$Kingdom, pred = dna.aa.svm.pred)
+
+dna.aa.svm.stats <- defaultSummary(dna.aa.svm.test)
+
+dna.aa.svm.stats
+```
+
+# Biochemical Models
+
+## Linear Discriminant Analysis
+```{r}
+dna.bio.lda <- train(Kingdom ~ ., data = dna.bio.train, 
+                 method = "lda", preProc = c("center", "scale"), trControl = controlObject)
+
+dna.bio.lda
+```
+
+### Check Variable Importance on trained model
+```{r}
+dna.bio.lda$finalModel
+
+varImp(dna.bio.lda)
+
+plot(varImp(dna.bio.lda))
+```
+
+### Calculate Accuracy and Kappa for Test Data
+```{r}
+dna.bio.lda.pred <- predict(dna.bio.lda, dna.bio.test)
+
+dna.bio.lda.test <- data.frame(obs = dna.bio.test$Kingdom, pred = dna.bio.lda.pred)
+
+dna.bio.lda.stats <- defaultSummary(dna.bio.lda.test)
+
+dna.bio.lda.stats
+```
+
+## Naïve Bayes
+```{r}
+dna.bio.nb <- train(Kingdom ~ ., data = dna.bio.train, method = "naive_bayes", preProc = c("center", "scale"), 
+                trControl = controlObject)
+
+dna.bio.nb
+
+plot(dna.bio.nb)
+
+varImp(dna.bio.nb)
+
+plot(varImp(dna.bio.nb))
+```
+
+```{r}
+dna.bio.nb.pred <- predict(dna.bio.nb, dna.bio.test)
+
+dna.bio.nb.test <- data.frame(obs = dna.bio.test$Kingdom, pred = dna.bio.nb.pred)
+
+dna.bio.nb.stats <- defaultSummary(dna.bio.nb.test)
+
+dna.bio.nb.stats
+```
+
+## K-Nearest Neighbors
+```{r}
+dna.bio.knn <- train(Kingdom ~ ., data = dna.bio.train, method = "knn", trControl = controlObject)
+
+dna.bio.knn
+
+plot(dna.bio.knn)
+
+varImp(dna.bio.knn)
+
+plot(varImp(dna.bio.knn))
+```
+
+```{r}
+dna.bio.knn.pred <- predict(dna.bio.knn, dna.bio.test)
+
+dna.bio.knn.test <- data.frame(obs = dna.bio.test$Kingdom, pred = dna.bio.knn.pred)
+
+dna.bio.knn.stats <- defaultSummary(dna.bio.knn.test)
+
+dna.bio.knn.stats
+```
+
+## Decision Tree
+```{r}
+dna.bio.tree <- train(Kingdom ~ ., data = dna.bio.train, method = "rpart", trControl = controlObject)
+
+dna.bio.tree
+
+plot(dna.bio.tree)
+
+varImp(dna.bio.tree)
+
+plot(varImp(dna.bio.tree))
+```
+
+```{r}
+dna.bio.tree.pred <- predict(dna.bio.tree, dna.bio.test)
+
+dna.bio.tree.test <- data.frame(obs = dna.bio.test$Kingdom, pred = dna.bio.tree.pred)
+
+dna.bio.tree.stats <- defaultSummary(dna.bio.tree.test)
+
+dna.bio.tree.stats
+```
+
+
+## Random Forest
+```{r}
+dna.bio.rf <- train(Kingdom ~ ., data = dna.bio.train, method = "rf", importance = TRUE)
+
+dna.bio.rf
+
+plot(dna.bio.rf)
+
+varImp(dna.bio.rf)
+
+plot(varImp(dna.bio.rf))
+```
+
+```{r}
+dna.bio.rf.pred <- predict(dna.bio.rf, dna.bio.test)
+
+dna.bio.rf.test <- data.frame(obs = dna.bio.test$Kingdom, pred = dna.bio.rf.pred)
+
+dna.bio.rf.stats <- defaultSummary(dna.bio.rf.test)
+
+dna.bio.rf.stats
+```
+
+## SVM
+```{r}
+dna.bio.svm <- train(Kingdom ~ ., data = dna.bio.train, method = "svmRadial")
+
+dna.bio.svm
+
+plot(dna.bio.svm)
+
+varImp(dna.bio.svm)
+
+plot(varImp(dna.bio.svm))
+```
+
+```{r}
+dna.bio.svm.pred <- predict(dna.bio.svm, dna.bio.test)
+
+dna.bio.svm.test <- data.frame(obs = dna.bio.test$Kingdom, pred = dna.bio.svm.pred)
+
+dna.bio.svm.stats <- defaultSummary(dna.bio.svm.test)
+
+dna.bio.svm.stats
+```
+
+### Create DataFrame with stats from all models
+```{r}
+Model <- c("LDA Codon", "LDA Amino Acid", "LDA Biochemical", "Naive Bayes Codon", 
+           "Naive Bayes Amino Acid", "Naive Bayes Biochemical", "KNN Codon", 
+           "KNN Amino Acid", "KNN Biochemical", "Decision Tree Codon",
+           "Decision Tree Amino Acid", "Decision Tree Biochemical", "Random Forest Codon", 
+           "Random Forest Amino Acid", "Random Forest Biochemical", "SVM Codon", 
+           "SVM Amino Acid", "SVM Biochemical")
+Accuracy <- c(dna.lda.stats[1], dna.aa.lda.stats[1], dna.bio.lda.stats[1], dna.nb.stats[1],
+              dna.aa.nb.stats[1], dna.bio.nb.stats[1], dna.knn.stats[1], dna.aa.knn.stats[1],
+              dna.bio.knn.stats[1], dna.tree.stats[1], dna.aa.tree.stats[1], dna.bio.tree.stats[1],
+              dna.rf.stats[1], dna.aa.rf.stats[1], dna.bio.rf.stats[1], dna.svm.stats[1],
+              dna.aa.svm.stats[1], dna.bio.svm.stats[1])
+Kappa <- c(dna.lda.stats[2], dna.aa.lda.stats[2], dna.bio.lda.stats[2], dna.nb.stats[2],
+              dna.aa.nb.stats[2], dna.bio.nb.stats[2], dna.knn.stats[2], dna.aa.knn.stats[2],
+              dna.bio.knn.stats[2], dna.tree.stats[2], dna.aa.tree.stats[2], dna.bio.tree.stats[2],
+              dna.rf.stats[2], dna.aa.rf.stats[2], dna.bio.rf.stats[2], dna.svm.stats[2],
+              dna.aa.svm.stats[2], dna.bio.svm.stats[2])
+
+models <- data.frame(Model, Accuracy, Kappa)
+
+models
+```
+
+```{r}
+data.frame("Kingdom" = dna.test$Kingdom, "Prediction" = dna.svm.pred, "Compare" = dna.test$Kingdom == dna.svm.pred) %>%
+  group_by(Kingdom, Compare) %>%
+  summarise(n = n())
+```
+
+```{r}
+data.frame("Kingdom" = dna.test$Kingdom, "Prediction" = dna.knn.pred, "Compare" = dna.test$Kingdom == dna.knn.pred) %>%
+  group_by(Kingdom, Compare) %>%
+  summarise(n = n())
+```
+
+```{r}
+data.frame("Kingdom" = dna.test$Kingdom, "Pred" = dna.rf.pred, "Compare" = dna.test$Kingdom == dna.rf.pred) %>%
+  group_by(Kingdom, Compare) %>%
+  summarise(n = n())
+```
+
